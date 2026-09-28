@@ -1,0 +1,11 @@
+{
+  "name": "gpx-planner",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Planificateur d'itinéraires vélo / randonnée (BRouter, Overpass) avec export GPX – application web statique.",
+  "type": "module",
+  "scripts": {
+    "start": "npx --yes http-server -p 8080 -c-1 .",
+    "test": "node --test tests/*.test.mjs"
+  }
+}

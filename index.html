@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Planificateur GPX – itinéraires vélo et randonnée</title>
+  <meta name="description" content="Planifiez vos itinéraires vélo et randonnée avec BRouter, trouvez les points d'eau et ravitaillements, exportez en GPX.">
+  <meta name="theme-color" content="#1e3a8a">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗺️</text></svg>">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span aria-hidden="true">🗺️</span> <span class="brand-name">Planificateur GPX</span></div>
+    <input id="doc-name" class="doc-name" type="text" aria-label="Nom de l'itinéraire" maxlength="80">
+    <form id="search-form" class="search" role="search">
+      <input id="search-input" type="search" placeholder="Rechercher un lieu…" aria-label="Rechercher un lieu" autocomplete="off">
+      <button class="btn icon" type="submit" title="Rechercher" aria-label="Rechercher">🔍</button>
+      <ul id="search-results" class="search-results" hidden></ul>
+    </form>
+    <div class="toolbar">
+      <button class="btn icon" id="btn-undo" title="Annuler (Ctrl+Z)" aria-label="Annuler">↶</button>
+      <button class="btn icon" id="btn-redo" title="Rétablir (Ctrl+Y)" aria-label="Rétablir">↷</button>
+      <button class="btn" id="btn-import" title="Importer un fichier GPX"><span aria-hidden="true">📂</span><span class="lbl"> Importer</span></button>
+      <button class="btn primary" id="btn-export" title="Exporter en GPX"><span aria-hidden="true">⬇️</span><span class="lbl"> Exporter GPX</span></button>
+      <button class="btn" id="btn-share" title="Copier un lien de partage"><span aria-hidden="true">🔗</span><span class="lbl"> Partager</span></button>
+    </div>
+    <input id="file-input" type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml" hidden>
+  </header>
+
+  <main class="layout">
+    <div class="map-area">
+      <div id="map" aria-label="Carte"></div>
+      <div class="map-tools">
+        <button class="btn icon map-btn" id="btn-locate" title="Me localiser" aria-label="Me localiser">📍</button>
+        <button class="btn icon map-btn" id="btn-fit" title="Voir tout l'itinéraire" aria-label="Voir tout l'itinéraire">⤢</button>
+      </div>
+      <div id="map-status" class="map-status" hidden></div>
+      <div class="color-legend" id="color-legend">
+        <label>Couleur :
+          <select id="color-mode">
+            <option value="surface">Surface</option>
+            <option value="way">Type de voie</option>
+            <option value="difficulty">Difficulté</option>
+            <option value="grade">Pente</option>
+            <option value="plain">Uni</option>
+          </select>
+        </label>
+        <div id="legend-items" class="legend-items"></div>
+      </div>
+      <section class="elevation" id="elevation">
+        <header class="elevation-head">
+          <button class="btn link" id="btn-elevation" aria-expanded="true">Profil altimétrique ▾</button>
+          <span id="range-info" class="range-info"></span>
+        </header>
+        <div id="chart" class="chart"></div>
+      </section>
+    </div>
+
+    <aside class="sidebar">
+      <nav class="tabs" role="tablist">
+        <button role="tab" class="tab active" data-tab="route" aria-selected="true">Itinéraire</button>
+        <button role="tab" class="tab" data-tab="pois" aria-selected="false">Points d'intérêt <span id="poi-count" class="badge"></span></button>
+        <button role="tab" class="tab" data-tab="projects" aria-selected="false">Projets</button>
+        <button role="tab" class="tab" data-tab="settings" aria-selected="false" title="Réglages">⚙️</button>
+      </nav>
+      <div class="tab-panels">
+        <section class="panel active" id="tab-route" role="tabpanel"></section>
+        <section class="panel" id="tab-pois" role="tabpanel"></section>
+        <section class="panel" id="tab-projects" role="tabpanel"></section>
+        <section class="panel" id="tab-settings" role="tabpanel"></section>
+      </div>
+    </aside>
+  </main>
+
+  <dialog id="import-dialog" class="dialog">
+    <form method="dialog">
+      <h2>Importer un GPX</h2>
+      <p id="import-summary"></p>
+      <fieldset>
+        <legend>Que faire de la trace ?</legend>
+        <label><input type="radio" name="import-mode" value="fixed" checked> Conserver la trace telle quelle (modifiable ensuite point par point)</label>
+        <label><input type="radio" name="import-mode" value="reroute"> Recalculer avec BRouter en passant par des points extraits de la trace</label>
+        <label><input type="radio" name="import-mode" value="waypoints"> N'importer que les points (wpt) comme étapes</label>
+      </fieldset>
+      <label class="row"><input type="checkbox" id="import-replace" checked> Remplacer l'itinéraire actuel</label>
+      <menu>
+        <button value="cancel" class="btn">Annuler</button>
+        <button value="ok" class="btn primary">Importer</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <dialog id="export-dialog" class="dialog">
+    <form method="dialog">
+      <h2>Exporter en GPX</h2>
+      <label class="row"><input type="checkbox" id="export-wpts" checked> Inclure les étapes (points de passage)</label>
+      <label class="row"><input type="checkbox" id="export-pois" checked> Inclure les POI sélectionnés (<span id="export-poi-count">0</span>)</label>
+      <label class="row"><input type="checkbox" id="export-all-pois"> Inclure tous les POI affichés</label>
+      <menu>
+        <button value="cancel" class="btn">Annuler</button>
+        <button value="ok" class="btn primary">Télécharger</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+
+  <noscript><p class="noscript">Cette application nécessite JavaScript.</p></noscript>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
